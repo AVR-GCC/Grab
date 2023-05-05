@@ -68,7 +68,6 @@ class MainActivity : AppCompatActivity() {
         var tvMessage = findViewById<TextView>(R.id.tvMessage)
 
         var myScanReceiver = MyScanReceiver(wifiManager) {
-            println("MyScanReceiver callback")
             try {
                 val myNetworksList = wifiManager.scanResults
                 println("Got list $myNetworksList")
