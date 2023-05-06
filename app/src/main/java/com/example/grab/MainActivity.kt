@@ -25,33 +25,6 @@ class MainActivity : AppCompatActivity() {
 
     private val REQUEST_CODE = 123
 
-    private fun getPermissionsToRequest(): Array<String> {
-        var missingPermissions: Array<String> = arrayOf();
-        for (permission in neededPermissions) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                missingPermissions.plus(permission);
-            }
-        }
-        return missingPermissions
-    }
-
-    private fun requestPermissions(missingPermissions: Array<String>) {
-        if (missingPermissions.isEmpty()) return
-        ActivityCompat.requestPermissions(this, missingPermissions, REQUEST_CODE)
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                println("Permissions granted!")
-            } else {
-                println("Permissions refused.")
-            }
-        }
-    }
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -91,6 +64,32 @@ class MainActivity : AppCompatActivity() {
                 println("Started!")
             } catch (e: SecurityException) {
                 println("No permission: startScan")
+            }
+        }
+    }
+
+    private fun getPermissionsToRequest(): Array<String> {
+        var missingPermissions: Array<String> = arrayOf();
+        for (permission in neededPermissions) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                missingPermissions.plus(permission);
+            }
+        }
+        return missingPermissions
+    }
+
+    private fun requestPermissions(missingPermissions: Array<String>) {
+        if (missingPermissions.isEmpty()) return
+        ActivityCompat.requestPermissions(this, missingPermissions, REQUEST_CODE)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                println("Permissions granted!")
+            } else {
+                println("Permissions refused.")
             }
         }
     }
