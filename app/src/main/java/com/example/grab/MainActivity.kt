@@ -1,5 +1,6 @@
 package com.example.grab
 
+import ClientThread
 import android.Manifest
 import android.content.Context
 import android.content.IntentFilter
@@ -19,12 +20,12 @@ import androidx.core.content.ContextCompat
 import java.io.IOException
 import java.net.Socket
 
-
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), Logger {
+    private lateinit var logger: Logger
+    private lateinit var tvMessage: TextView
     private lateinit var nsdManager: NsdManager
-    private var nsdHandler = Handler(Looper.getMainLooper())
+    private var logHandler = Handler(Looper.getMainLooper())
     private lateinit var wifiManager: WifiManager
-    private lateinit var wifiP2PManager: WifiP2pManager
     private var neededPermissions:Array<String> = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_WIFI_STATE,
@@ -37,18 +38,20 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        if (wifiManager.isWifiEnabled) {
-            wifiManager.isWifiEnabled = false
-        }
-
-        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+//        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+//        if (wifiManager.isWifiEnabled) {
+//            wifiManager.isWifiEnabled = false
+//        }
+//
+//        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
         requestPermissions(getPermissionsToRequest())
 
         var btnConnect = findViewById<Button>(R.id.btnConnect)
         var btnHost = findViewById<Button>(R.id.btnHost)
-        var tvMessage = findViewById<TextView>(R.id.tvMessage)
+        tvMessage = findViewById<TextView>(R.id.tvMessage)
+        nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
+
 
 //        var myScanReceiver = MyScanReceiver(wifiManager) {
 //            try {
@@ -77,119 +80,26 @@ class MainActivity : AppCompatActivity() {
 //            }
 //        }
         btnHost.setOnClickListener {
-            // Create an NSD service info object to advertise our service
-            val serviceInfo = NsdServiceInfo().apply {
-                serviceName = "Grab Provider 2"
-                serviceType = "_http._tcp."
-                port = 8080
+            var serverThread = ServerThread(this, nsdManager);
+            serverThread.startServer()
+            logHandler.post {
+                btnHost.text = "Stop"
             }
-
-            // Create an NSD service listener to handle events
-            val nsdListener = object : NsdManager.RegistrationListener {
-                override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
-                    // Service was successfully registered
-                    nsdHandler.post {
-                        tvMessage.text = "Service registered! Starting thread..."
-                    }
-                    // Start a new thread to accept incoming connections
-                    var serverThread = ServerThread(serviceInfo.port)
-                    serverThread.startServer()
-                }
-                override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                    // Registration failed
-                    nsdHandler.post {
-                        tvMessage.text = "Registration failed! $errorCode"
-                    }
-                }
-                override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {
-                    // Service was unregistered
-                    nsdHandler.post {
-                        tvMessage.text = "Service unregistered"
-                    }
-                }
-                override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                    // Unregistration failed
-                    nsdHandler.post {
-                        tvMessage.text = "Service unregistration failed $errorCode"
-                    }
-                }
+            btnHost.setOnClickListener {
+                serverThread.stopServer()
+                this.log("Server stopped")
             }
-
-            // Get an instance of the NsdManager and register our service
-            nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
-            tvMessage.text = "Registering service..."
-            nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, nsdListener)
         }
 
         btnConnect.setOnClickListener {
-            // Create an NSD discovery listener to handle events
-            val discoveryListener = object : NsdManager.DiscoveryListener {
-                override fun onDiscoveryStarted(serviceType: String) {
-                    // Discovery started
-                    nsdHandler.post {
-                        tvMessage.text = "Discovering..."
-                    }
-                }
-                override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                    nsdHandler.post {
-                        tvMessage.text = "Service found: ${serviceInfo.serviceName}"
-                    }
-                    if (serviceInfo.serviceName == "Grab Provider 2") {
-                        // Service found, resolve it to get its IP address and port
-                        nsdManager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                                // Resolve failed
-                            }
-                            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                                // Service resolved, get its IP address and port
-                                val host = serviceInfo.host
-                                val port = serviceInfo.port
-                                // Use the IP address and port to establish a socket connection to the server
-                                nsdHandler.post {
-                                    tvMessage.text = "Establishing socket: $host - $port"
-                                }
-                                try {
-                                    val socket = Socket(host, port)
-                                } catch (e: IOException) {
-                                    nsdHandler.post {
-                                        tvMessage.text = "Error with socket: $e"
-                                    }
-                                }
-                            }
-                        })
-                    }
-                }
-                override fun onDiscoveryStopped(serviceType: String) {
-                    // Discovery stopped
-                    nsdHandler.post {
-                        tvMessage.text = "Discovery stopped"
-                    }
-                }
-                override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                    // Service lost
-                    nsdHandler.post {
-                        tvMessage.text = "Service lost"
-                    }
-                }
-                override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                    // Start discovery failed
-                    nsdHandler.post {
-                        tvMessage.text = "Start discover failed $errorCode"
-                    }
-                }
+            var clientThread = ClientThread(this, nsdManager);
+            clientThread.startClient()
+        }
+    }
 
-                override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                    // Stop discovery failed
-                    nsdHandler.post {
-                        tvMessage.text = "Stop discovery failed $errorCode"
-                    }
-                }
-            }
-
-            // Get an instance of the NsdManager and start the discovery process
-            nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
-            tvMessage.text = "Discovering hosts..."
-            nsdManager.discoverServices("_http._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+    override fun log(text: String) {
+        runOnUiThread {
+            tvMessage.text = text
         }
     }
 
